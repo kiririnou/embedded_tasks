@@ -5,187 +5,174 @@
 #include <cstdarg>
 #include <cstdint>
 
-#define PIN_LED_RED  40
-#define PIN_LED_BLUE 41
+constexpr uint8_t PIN_LED_RED = 40;
+constexpr uint8_t PIN_LED_BLUE = 41;
 
-#define PIN_BUTTON_BUILTIN 0
-#define PIN_BUTTON_CUSTOM 42
+constexpr uint8_t PIN_BUTTON_BUILTIN = 0;
+constexpr uint8_t PIN_BUTTON_CUSTOM = 42;
 
-#define DEBOUNCE_DELAY_MS 30
+constexpr uint32_t DEBOUNCE_DELAY_MS = 30;
+constexpr uint32_t BAUD_RATE = 115200;
 
-#define TIMED_DEBUG(interval, fmt, ...)                                     \
+constexpr uint32_t BLINK_INTERVAL_FAST = 200;
+constexpr uint32_t BLINK_INTERVAL_SLOW = 1000;
+
+static uint32_t time_now = 0U;
+
+// Macro for interval based logging
+#define INTERVAL_DEBUG(interval, fmt, ...)                                  \
     do {                                                                    \
-        static uint32_t prev_print_time = 0U;                               \
-        const long now = millis();                                          \
-        if ((static_cast<uint32_t>(now) - prev_print_time) >= interval) {   \
+        static uint32_t time_prev_print = 0U;                               \
+        if ((time_now - time_prev_print) >= interval) {                     \
             Serial.printf(fmt __VA_OPT__(,) __VA_ARGS__);                   \
-            prev_print_time = now;                                          \
+            time_prev_print = time_now;                                     \
         }                                                                   \
     } while(0)
 
-typedef enum {
-    BLINK_STYLE_FAST_SYNC,
-    BLINK_STYLE_SLOW_ALTER,
-    BLINK_STYLE_OFF
-} blink_style_t;
+enum class BlinkStyle : uint8_t {
+    FastSync,
+    SlowAlter,
+    Off
+};
 
-static blink_style_t blink_style;
+static BlinkStyle blink_style;
 
-typedef struct {
-    uint32_t last_value;
-    uint32_t last_press_time;
-    uint32_t current_value;
-    uint32_t current_press_time;
-} button_state_t;
+struct ButtonState {
+    uint8_t raw_value;
+    uint8_t stable_value;
+    uint32_t raw_time;
+};
 
-static button_state_t button_custom_state = { 0 };
-static button_state_t button_builtin_state = { 0 };
+static ButtonState button_custom_state = { 0 };
+static ButtonState button_builtin_state = { 0 };
 
-bool button_is_updated(const uint8_t pin, button_state_t* const button_state) {
-    button_state->last_press_time = button_state->current_press_time;
-    button_state->current_press_time = millis();
+void button_read(const uint8_t pin, ButtonState& button_state) {
+    const uint8_t raw = digitalRead(pin) == LOW;
 
-    uint32_t state = digitalRead(pin);
-    // Serial.printf("state = %d\n", state);
-
-    if ((button_state->current_press_time - button_state->last_press_time) > DEBOUNCE_DELAY_MS) {
-        button_state->last_value = button_state->current_value;
-        button_state->current_value = !state;
-
-        // Serial.print("Inside time diff\n");
-
-        if (button_state->last_value != button_state->current_value) {
-            return true;
-        }
+    if (raw != button_state.raw_value) {
+        button_state.raw_value = raw;
+        button_state.raw_time = time_now;
     }
 
-    return false;
-}
-
-void button_read(const uint8_t pin, button_state_t* const button_state) {
-    button_state->current_press_time = millis();
-    uint32_t state = digitalRead(pin);
-
-    // TIMED_DEBUG(200, "\n>>>state = %d\n", state);
-
-    // TIMED_DEBUG(1000,
-    //             "=====================================\n"
-    //             "button_state->last_value: %u\n"
-    //             "button_state->current_value: %u\n"
-    //             "button_state->last_press_time: %u\n"
-    //             "button_state->current_press_time: %u\n"
-    //             "time_diff: %u\n"
-    //             "=====================================\n",
-    //             button_state->last_value,
-    //             button_state->current_value,
-    //             button_state->last_press_time,
-    //             button_state->current_press_time,
-    //             (button_state->current_press_time - button_state->last_press_time));
-
-    if (button_state->current_value != !state &&
-        (button_state->current_press_time - button_state->last_press_time) >= DEBOUNCE_DELAY_MS) {
-        // TIMED_DEBUG(500, ">>>Inside debounce\n");
-        button_state->last_value = button_state->current_value;
-        button_state->current_value = !state;
-        button_state->last_press_time = button_state->current_press_time;
+    if ((button_state.stable_value != button_state.raw_value) &&
+        (time_now - button_state.raw_time) >= DEBOUNCE_DELAY_MS) {
+        button_state.stable_value = button_state.raw_value;
     }
-}
-
-void led_blink(const uint8_t pin, const uint32_t delay_high_ms, const uint32_t delay_low_ms) {
-    digitalWrite(pin, HIGH);
-    delay(delay_high_ms);
-    digitalWrite(pin, LOW);
-    delay(delay_low_ms);
 }
 
 void led_blink_fast_sync() {
-    led_blink(PIN_LED_RED, 200, 0);
-    led_blink(PIN_LED_BLUE, 200, 0);
+    static uint8_t state = HIGH;
+    static uint32_t prev_time = 0U;
+
+    INTERVAL_DEBUG(BLINK_INTERVAL_FAST,
+                "==============================\n"
+                "led_blink_fast_sync()\n"
+                "state = %u\n"
+                "prev_time = %u\n"
+                "now = %u\n"
+                "==============================\n",
+                state, prev_time, time_now);
+
+    if ((time_now - prev_time) >= BLINK_INTERVAL_FAST) {
+        digitalWrite(PIN_LED_RED, state);
+        digitalWrite(PIN_LED_BLUE, state);
+        state = !state;
+        prev_time = time_now;
+    }
 }
 
 void led_blink_slow_alter() {
-    led_blink(PIN_LED_RED, 1000, 1000);
-    led_blink(PIN_LED_BLUE, 1000, 1000);
+    static uint8_t state = HIGH;
+    static uint32_t prev_time = 0U;
+
+    INTERVAL_DEBUG(BLINK_INTERVAL_SLOW,
+                "==============================\n"
+                "led_blink_slow_alter()\n"
+                "state = %u\n"
+                "prev_time = %u\n"
+                "now = %u\n"
+                "==============================\n",
+                state, prev_time, time_now);
+
+    if ((time_now - prev_time) >= BLINK_INTERVAL_SLOW) {
+        digitalWrite(PIN_LED_RED, state);
+        digitalWrite(PIN_LED_BLUE, !state);
+        state = !state;
+        prev_time = time_now;
+    }
 }
 
-// Interrupts
-// void button_custom_handler() {
-//     blink_style = BLINK_STYLE_FAST_SYNC;
-// }
-//
-// void button_builtin_handler() {
-//     blink_style = BLINK_STYLE_SLOW_ALTER;
-// }
-
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(BAUD_RATE);
 
     pinMode(PIN_LED_RED, OUTPUT);
     pinMode(PIN_LED_BLUE, OUTPUT);
 
     pinMode(PIN_BUTTON_BUILTIN, INPUT_PULLUP);
-    // attachInterrupt(digitalPinToInterrupt(PIN_BUTTON_BUILTIN), button_builtin_handler, CHANGE);
     pinMode(PIN_BUTTON_CUSTOM, INPUT_PULLUP);
-    // attachInterrupt(digitalPinToInterrupt(PIN_BUTTON_CUSTOM), button_custom_handler, CHANGE);
 
-    blink_style = BLINK_STYLE_FAST_SYNC;
+    blink_style = BlinkStyle::FastSync;
 
     Serial.print("Board started...\n");
 }
 
 void loop() {
-    // Serial.print("In loop\n");
-    // bool button_custom_is_updated = button_is_updated(PIN_BUTTON_CUSTOM, &button_custom_state);
-    // bool button_builtin_is_updated = button_is_updated(PIN_BUTTON_BUILTIN, &button_builtin_state);
+    time_now = static_cast<uint32_t>(millis());
 
-    // Serial.printf("Custom button: previous(%d) | current(%d) | updated(%d)\n",
-    //               button_custom_state.last_value, button_custom_state.current_value, button_custom_is_updated);
-    //
-    // Serial.printf("Builtin button: previous(%d) | current(%d) | updated(%d)\n",
-    //               button_builtin_state.last_value, button_builtin_state.current_value, button_builtin_is_updated);
+    button_read(PIN_BUTTON_CUSTOM, button_custom_state);
+    button_read(PIN_BUTTON_BUILTIN, button_builtin_state);
 
-    button_read(PIN_BUTTON_CUSTOM, &button_custom_state);
-    button_read(PIN_BUTTON_BUILTIN, &button_builtin_state);
+    INTERVAL_DEBUG(1000,
+                "=====================================\n"
+                "button_custom_state.raw_value: %u\n"
+                "button_custom_state.raw_time: %u\n"
+                "button_custom_state.stable_value: %u\n"
+                "time_diff: %u\n"
+                "=====================================\n",
+                button_custom_state.raw_value,
+                button_custom_state.raw_time,
+                button_custom_state.stable_value,
+                (time_now - button_custom_state.raw_time));
 
-    TIMED_DEBUG(1000,
-                "Custom button: previous(%d) | current(%d)\n",
-                button_custom_state.last_value, button_custom_state.current_value);
+    INTERVAL_DEBUG(1000,
+                "=====================================\n"
+                "button_builtin_state.raw_value: %u\n"
+                "button_builtin_state.raw_time: %u\n"
+                "button_builtin_state.stable_value: %u\n"
+                "time_diff: %u\n"
+                "=====================================\n",
+                button_builtin_state.raw_value,
+                button_builtin_state.raw_time,
+                button_builtin_state.stable_value,
+                (time_now - button_builtin_state.raw_time));
 
-    TIMED_DEBUG(1000,
-                "Builtin button: previous(%d) | current(%d)\n",
-                button_builtin_state.last_value, button_builtin_state.current_value);
 
-    // if (button_custom_is_updated && button_builtin_is_updated) {
-    if (button_custom_state.current_value && button_builtin_state.current_value) {
-        Serial.print("Warning: both buttons are updated\n");
-        digitalWrite(PIN_LED_RED, LOW);
-        digitalWrite(PIN_LED_BLUE, LOW);
-        blink_style = BLINK_STYLE_OFF;
-        return;
-    }
-
-    if (/* button_custom_is_updated && */ button_custom_state.current_value == HIGH) {
-        TIMED_DEBUG(500, "Custom button was pressed\n");
-        blink_style = BLINK_STYLE_FAST_SYNC;
-    }
-
-    if (/* button_builtin_is_updated && */ button_builtin_state.current_value == HIGH) {
-        TIMED_DEBUG(500, "Builtin button was pressed\n");
-        blink_style = BLINK_STYLE_SLOW_ALTER;
+    if (button_custom_state.stable_value
+        && button_builtin_state.stable_value
+        && blink_style != BlinkStyle::Off) {
+        INTERVAL_DEBUG(500, "Warning: both buttons are updated\n");
+        blink_style = BlinkStyle::Off;
+    } else if (button_custom_state.stable_value && blink_style != BlinkStyle::FastSync) {
+        INTERVAL_DEBUG(500, "Custom button was pressed\n");
+        blink_style = BlinkStyle::FastSync;
+    } else if (button_builtin_state.stable_value && blink_style != BlinkStyle::SlowAlter) {
+        INTERVAL_DEBUG(500, "Builtin button was pressed\n");
+        blink_style = BlinkStyle::SlowAlter;
     }
 
     switch (blink_style) {
-    case BLINK_STYLE_FAST_SYNC:
+    case BlinkStyle::FastSync:
         led_blink_fast_sync();
         break;
 
-    case BLINK_STYLE_SLOW_ALTER:
+    case BlinkStyle::SlowAlter:
         led_blink_slow_alter();
         break;
 
-    case BLINK_STYLE_OFF:
-        // NOTE: because buttons maybe not unpressed at the exact same time
-        TIMED_DEBUG(1000, "LEDs are off\n");
+    case BlinkStyle::Off:
+        INTERVAL_DEBUG(1000, "LEDs are off\n");
+        digitalWrite(PIN_LED_RED, LOW);
+        digitalWrite(PIN_LED_BLUE, LOW);
         break;
     }
 }
