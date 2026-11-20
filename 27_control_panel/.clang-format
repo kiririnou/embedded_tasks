@@ -1,0 +1,49 @@
+BasedOnStyle: LLVM
+
+# Language: Cpp
+ColumnLimit: 100
+
+# Struct / array initializer formatting
+BinPackArguments: false
+AllowAllArgumentsOnNextLine: false
+
+# Indentation
+IndentWidth: 4
+ContinuationIndentWidth: 4
+
+# Braces
+# BreakBeforeBraces: Allman
+# BraceWrapping:
+#   AfterFunction: true
+#   AfterControlStatement: Never
+#   AfterStruct: false
+#   AfterEnum: false
+#   AfterUnion: false
+#   SplitEmptyFunction: true
+
+AllowShortFunctionsOnASingleLine: None
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: true
+  AfterControlStatement: Always
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: true
+  AfterCaseLabel: true
+
+  BeforeElse: true
+  BeforeCatch: true
+
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+
+# Pointer
+DerivePointerAlignment: false
+PointerAlignment: Left
+ReferenceAlignment: Pointer
+SpaceAroundPointerQualifiers: Default
