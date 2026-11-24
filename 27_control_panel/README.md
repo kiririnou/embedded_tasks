@@ -28,3 +28,6 @@ Button control:
 
 Demo:
 ![Demo](assets/demo.mp4)
+
+Scheme:
+![Scheme](assets/scheme.png)
