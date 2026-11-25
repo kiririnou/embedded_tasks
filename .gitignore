@@ -30,7 +30,6 @@ compile_commands.json
 Debug/
 Release/
 Drivers/
-Startup/
 STM32F411CEUX_*.ld
 **/stm32f4xx_*.c
 **/stm32f4xx_*.h
