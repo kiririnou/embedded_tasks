@@ -40,6 +40,7 @@ STM32F411CEUX_*.ld
 *.project
 *.cproject
 *.mxproject
+*.settings
 
 # Ignore common binary and object files generated during compilation.
 # They should not be included in the repository as they are build artifacts.
